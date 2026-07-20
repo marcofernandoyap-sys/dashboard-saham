@@ -12,7 +12,7 @@ Sistem analisa saham + (nanti) eksekusi otomatis untuk penggunaan pribadi.
 |------|-------|--------|
 | 1 | Data ingestion + storage (SQLite) | ✅ selesai |
 | 2 | Analysis engine + scoring + screener + signal logic | ✅ selesai |
-| 3 | Backtesting engine | ⬜ belum |
+| 3 | Backtesting engine + gerbang kesiapan live | ✅ selesai |
 | 4 | Dashboard read-only (Streamlit) | ⬜ belum |
 | 5 | Paper trading (Alpaca US) / notifikasi (IDX) | ⬜ belum |
 | 6 | Live trading (HANYA setelah konfirmasi eksplisit user) | ⬜ belum |
@@ -50,9 +50,24 @@ python -m scripts.ingest --index LQ45 --period 2y
 # 2. Analisa -> watchlist + trade plan (capital dalam Rupiah)
 python -m scripts.analyze --capital 100000000 --top 15
 
+# 3. Backtest + gerbang kesiapan live (simpan hasil ke data/backtests/)
+python -m scripts.backtest --capital 100000000 --fee-bps 20
+
 # uji cepat tanpa network
 python -m tests.test_pipeline
+python -m tests.test_backtest
 ```
+
+## Temuan backtest awal (PENTING)
+
+Dengan parameter DEFAULT pada data LQ45 ~2 tahun: strategi **RUGI**
+(win rate ~30%, profit factor 0,60, Sharpe negatif, total return ~ −11%).
+Ini hasil yang diharapkan dari rule-set naif pertama — dan justru inilah guna
+backtesting: mencegah deploy uang riil untuk strategi tanpa edge.
+
+Gerbang `live_readiness()` otomatis **memblokir live** selama profit factor < 1,
+expectancy ≤ 0, total return ≤ 0, atau Sharpe < 1. Perbaikan strategi harus lewat
+**walk-forward / out-of-sample**, bukan curve-fitting parameter ke satu periode.
 
 ## Aturan sinyal (watchlist utama)
 
