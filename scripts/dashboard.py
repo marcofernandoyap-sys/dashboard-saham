@@ -23,6 +23,7 @@ import pandas as pd
 import streamlit as st
 
 from quant.analysis.decision import decide
+from quant.analysis.footprint import compute_footprint
 from quant.analysis.scoring import compute_features, score_ticker
 from quant.analysis.screener import detect_speculative, screen_liquidity_idx
 from quant.analysis.signals import evaluate_buy
@@ -318,14 +319,40 @@ def main() -> None:
             feat = compute_features(df, SETTINGS.indicators).tail(n_bars)
             cols = [c for c in ["close", "ema_50", "ema_200"] if c in feat]
             st.line_chart(feat[cols])
-            sc = score_ticker(sel, compute_features(df, SETTINGS.indicators),
-                              SETTINGS)
+            feat_full = compute_features(df, SETTINGS.indicators)
+            sc = score_ticker(sel, feat_full, SETTINGS)
             if sc is not None:
                 st.metric("Skor komposit terakhir", sc.composite,
                           help=f"Klasifikasi: {sc.classification}")
                 st.markdown("**Alasan skor:**")
                 for r in sc.reasons:
                     st.markdown(f"- {r}")
+
+            # ---- Jejak akumulasi/distribusi (proksi 'bandarmology') ----
+            st.markdown("---")
+            st.markdown("### Jejak akumulasi / distribusi (proksi)")
+            fp_lb = st.slider("Window jejak (hari bursa)", 10, 60, 20, key="fp_lb")
+            fp = compute_footprint(feat_full, sel, lookback=fp_lb)
+            if fp is None:
+                st.info("Data belum cukup untuk membaca jejak.")
+            else:
+                vmap = {"AKUMULASI": "🟢 AKUMULASI",
+                        "DISTRIBUSI": "🔴 DISTRIBUSI", "NETRAL": "⚪ NETRAL"}
+                f1, f2, f3 = st.columns(3)
+                f1.metric("Jejak", vmap.get(fp.verdict, fp.verdict),
+                          help="Arah tekanan harga/volume selama window.")
+                f2.metric("Keyakinan", fp.confidence,
+                          help="Seberapa banyak komponen (A/D, OBV, CMF, volume) "
+                               "sepakat arahnya.")
+                f3.metric("Δ Harga window", f"{fp.price_change_pct:+.1f}%")
+                if fp.absorption:
+                    st.warning("⚑ **Absorpsi terdeteksi** — harga flat/turun TAPI "
+                               "jejak akumulasi. Klasik 'ada yang mengumpulkan "
+                               "diam-diam'. Ini indikasi TERKUAT dari proksi ini.")
+                st.markdown("**Rincian jejak:**")
+                for s in fp.signals:
+                    st.markdown(f"- {s}")
+                st.caption("⚠ " + fp.caveat)
 
 
 if __name__ == "__main__":
