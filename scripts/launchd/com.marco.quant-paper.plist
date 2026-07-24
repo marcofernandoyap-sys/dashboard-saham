@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent: jalankan paper trading harian tiap sore hari kerja (Sen-Jum).
+
+  Kenapa launchd, bukan cron?
+    macOS modern (>= 10.10) sudah tidak menganjurkan cron. launchd = native,
+    tidak butuh terminal aktif, otomatis dijalankan ulang jika Mac sedang tidur
+    pada jam yang dijadwalkan (StartCalendarInterval "misfire" di-recover).
+
+  Jadwal: 17:15 waktu LOKAL (Asia/Jakarta = WIB) tiap Sen-Jum.
+    -> `Hour=17 Minute=15 Weekday=1..5` (Senin=1 s/d Jumat=5 di launchd).
+
+  Mac harus dalam keadaan MENYALA (login boleh non-aktif). Kalau sedang tidur:
+    - Jika 'RunAtLoad' + 'StartCalendarInterval' + Mac wake -> launchd
+      mengejar job pada bangun berikutnya.
+    - Jika ingin dieksekusi meski Mac tidur, butuh `caffeinate` / power scheduling
+      (di luar cakupan plist ini; user bisa pasang manual via pmset).
+
+  Instalasi & pengecekan ada di scripts/launchd/README.md.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.marco.quant-paper</string>
+
+  <!--
+    Path ABSOLUT ke venv python (LaunchAgent tidak mewarisi PATH shell).
+    Ganti jika lokasi repo/venv berbeda.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/crm/quant-trading/.venv/bin/python</string>
+    <string>-m</string>
+    <string>scripts.paper_daily</string>
+  </array>
+
+  <!-- WorkingDirectory penting supaya path relatif (data/paper/, data/market.db) benar -->
+  <key>WorkingDirectory</key>
+  <string>/Users/crm/quant-trading</string>
+
+  <!--
+    Jadwal: tiap Senin-Jumat, 17:15 lokal.
+    (Weekday 0=Minggu ATAU 7=Minggu di launchd. 1=Senin s/d 5=Jumat.)
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Weekday</key><integer>1</integer>
+      <key>Hour</key><integer>17</integer>
+      <key>Minute</key><integer>15</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key><integer>2</integer>
+      <key>Hour</key><integer>17</integer>
+      <key>Minute</key><integer>15</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key><integer>3</integer>
+      <key>Hour</key><integer>17</integer>
+      <key>Minute</key><integer>15</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key><integer>4</integer>
+      <key>Hour</key><integer>17</integer>
+      <key>Minute</key><integer>15</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key><integer>5</integer>
+      <key>Hour</key><integer>17</integer>
+      <key>Minute</key><integer>15</integer>
+    </dict>
+  </array>
+
+  <!--
+    Kalau Mac dimatikan/tidur saat jadwal, jalankan setelah bangun (bukan hanya
+    menunggu jadwal berikutnya). Aman utk paper trading (idempoten via _Tee log).
+  -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <!-- Log stdout & stderr utk debugging cron style -->
+  <key>StandardOutPath</key>
+  <string>/Users/crm/quant-trading/data/paper/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/crm/quant-trading/data/paper/launchd.err.log</string>
+
+  <!-- Timezone lokal (Asia/Jakarta) — memastikan Hour=17 = WIB, bukan UTC -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TZ</key>
+    <string>Asia/Jakarta</string>
+  </dict>
+
+  <!-- ProcessType Background: prioritas rendah, cocok utk non-interaktif -->
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

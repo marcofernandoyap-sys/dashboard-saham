@@ -74,11 +74,12 @@ def sharpe_ratio(daily_returns: list[float],
     return (mean / std) * math.sqrt(periods_per_year)
 
 
-def cagr(equity_curve: list[float], n_days: int) -> float:
+def cagr(equity_curve: list[float], n_days: int,
+         periods_per_year: int = TRADING_DAYS_PER_YEAR) -> float:
     if not equity_curve or equity_curve[0] <= 0 or n_days <= 0:
         return 0.0
     total = equity_curve[-1] / equity_curve[0]
-    years = n_days / TRADING_DAYS_PER_YEAR
+    years = n_days / periods_per_year
     if years <= 0:
         return 0.0
     return total ** (1 / years) - 1.0
@@ -88,7 +89,8 @@ def compute_metrics(trade_returns_pct: list[float],
                     trade_r_multiples: list[float],
                     equity_curve: list[float],
                     daily_returns: list[float],
-                    n_days: int) -> Metrics:
+                    n_days: int,
+                    periods_per_year: int = TRADING_DAYS_PER_YEAR) -> Metrics:
     srt = sorted(trade_returns_pct)
     median = srt[len(srt) // 2] if srt else 0.0
     exp_r = (sum(trade_r_multiples) / len(trade_r_multiples)
@@ -104,7 +106,7 @@ def compute_metrics(trade_returns_pct: list[float],
         profit_factor=profit_factor(trade_returns_pct),
         expectancy_r=exp_r,
         max_drawdown_pct=max_drawdown(equity_curve),
-        sharpe=sharpe_ratio(daily_returns),
+        sharpe=sharpe_ratio(daily_returns, periods_per_year=periods_per_year),
         total_return_pct=total_ret,
-        cagr_pct=cagr(equity_curve, n_days),
+        cagr_pct=cagr(equity_curve, n_days, periods_per_year=periods_per_year),
     )

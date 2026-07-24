@@ -4,6 +4,7 @@ CLI: ambil data historis IDX (atau US) via yfinance dan simpan ke SQLite.
 
 Contoh:
     python -m scripts.ingest --index LQ45 --period 3y
+    python -m scripts.ingest --index IDX --csv data/universe/idx_tradingview.csv
     python -m scripts.ingest --tickers BBCA.JK TLKM.JK --period 2y
 """
 from __future__ import annotations
@@ -21,14 +22,17 @@ from quant.universe import idx_tickers
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ingest data harga ke SQLite")
-    ap.add_argument("--index", default="LQ45", help="LQ45 atau IDX30")
+    ap.add_argument("--index", default="LQ45",
+                    help="LQ45, IDX30, atau IDX/ALL (full universe dari CSV)")
+    ap.add_argument("--csv", default=None,
+                    help="path export TradingView (dipakai saat --index IDX/ALL)")
     ap.add_argument("--tickers", nargs="*", help="override daftar ticker (mis. BBCA.JK)")
     ap.add_argument("--market", default="IDX")
     ap.add_argument("--period", default="3y", help="periode yfinance (mis. 3y, 5y)")
     ap.add_argument("--interval", default="1d")
     args = ap.parse_args()
 
-    tickers = args.tickers or idx_tickers(args.index)
+    tickers = args.tickers or idx_tickers(args.index, csv_path=args.csv)
     print(f"Ingesting {len(tickers)} ticker (market={args.market}, "
           f"period={args.period})...")
 

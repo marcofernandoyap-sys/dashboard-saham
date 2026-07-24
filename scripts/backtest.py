@@ -16,7 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from quant.backtest.engine import Backtester, BacktestConfig
+from quant.backtest.engine import (Backtester, BacktestConfig, build_regime,
+                                    build_rs)
 from quant.backtest.registry import live_readiness, save_result
 from quant.config import SETTINGS
 from quant.data.storage import Storage
@@ -32,15 +33,27 @@ def main() -> int:
     args = ap.parse_args()
 
     storage = Storage()
-    tickers = storage.tickers()
+    tickers = storage.tickers(market="IDX")   # indeks (^JKSE) BUKAN aset tradable
     if not tickers:
         print("Belum ada data. Jalankan dulu: python -m scripts.ingest --index LQ45")
         return 1
 
     ohlcv = {t: storage.load_ohlcv(t) for t in tickers}
+    index_df = storage.load_ohlcv(SETTINGS.regime.index_ticker)
+    index_df = index_df if not index_df.empty else None
+    regime_ok = build_regime(index_df, SETTINGS)
+    rs_ok = build_rs(ohlcv, index_df, SETTINGS)
+    if SETTINGS.regime.enabled and regime_ok is None:
+        print(f"[peringatan] data indeks {SETTINGS.regime.index_ticker} tak ada -> "
+              "filter regime NONAKTIF. Ingest: "
+              f"python -m scripts.ingest --tickers {SETTINGS.regime.index_ticker} --market INDEX")
+    if SETTINGS.rs.enabled and rs_ok is None:
+        print(f"[peringatan] data indeks tak ada -> filter kekuatan relatif NONAKTIF.")
+
     cfg = BacktestConfig(initial_capital=args.capital, fee_bps=args.fee_bps,
                          start=args.start, end=args.end)
-    result = Backtester(ohlcv, cfg, SETTINGS).run()
+    result = Backtester(ohlcv, cfg, SETTINGS, regime_ok=regime_ok,
+                        rs_ok=rs_ok).run()
     m = result.metrics
 
     print("\n" + "=" * 64)

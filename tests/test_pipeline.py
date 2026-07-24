@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from quant.analysis import indicators as ind
+from quant.analysis.decision import decide
 from quant.analysis.scoring import compute_features, score_ticker
 from quant.analysis.signals import (evaluate_buy, position_size,
                                     take_profit_from_rr)
@@ -136,6 +137,59 @@ def test_rr_math() -> None:
     check(abs(tp - 1100) < 1e-6, f"TP untuk RR 1:2 = 1100 (dapat {tp})")
 
 
+def test_decision_verdict() -> None:
+    from quant.analysis.scoring import Score
+    from quant.analysis.signals import TradePlan
+
+    print("\n== Decision layer (BUY/WATCH/AVOID) ==")
+    # Konstruksi eksplisit sinyal BUY (deterministik, tak bergantung generator):
+    # entry 1000, stop 900 (downside 10%), TP 1300 (upside 30%) -> RR 1:3.
+    sc = Score(ticker="TEST.JK", date="2024-01-01", composite=72.0,
+               classification="Buy", trend_score=60.0, moneyflow_score=55.0,
+               confirming_categories=2, volume_confirmed=True,
+               above_ema_trend=True, reasons=["uji"],
+               features={"close": 1000.0, "atr": 30.0})
+    plan = TradePlan(ticker="TEST.JK", date="2024-01-01", action="BUY",
+                     entry=1000.0, stop_loss=900.0, take_profit=1300.0,
+                     risk_reward=3.0, shares=1000, risk_amount=1_000_000.0,
+                     rationale=["uji"], blocked_reasons=[])
+
+    # Gerbang lolos + regime & RS OK -> BUY, konteks terisi.
+    d_buy = decide(sc, plan, regime_ok=True, rs_ok=True, liquid=True)
+    check(d_buy.verdict == "BUY", "regime+RS ok & likuid -> BUY")
+    check(abs(d_buy.downside_pct - 10.0) < 1e-6, f"downside 10% ({d_buy.downside_pct})")
+    check(abs(d_buy.upside_pct - 30.0) < 1e-6, f"upside 30% ({d_buy.upside_pct})")
+    # (TP-entry)/ATR = 300/30 = 10 hari.
+    check(d_buy.est_holding_days == 10, f"perkiraan tahan 10 hari ({d_buy.est_holding_days})")
+    ratio = d_buy.upside_pct / d_buy.downside_pct
+    check(abs(ratio - d_buy.risk_reward) < 0.05,
+          f"upside/downside ({ratio:.2f}) ~ RR ({d_buy.risk_reward})")
+
+    # Setup valid tapi regime bearish -> WATCH (bukan BUY).
+    d_watch = decide(sc, plan, regime_ok=False, rs_ok=True, liquid=True)
+    check(d_watch.verdict == "WATCH", "regime bearish -> WATCH (diblokir)")
+    # RS lemah -> WATCH juga.
+    d_watch2 = decide(sc, plan, regime_ok=True, rs_ok=False, liquid=True)
+    check(d_watch2.verdict == "WATCH", "RS<indeks -> WATCH (diblokir)")
+    # Tidak likuid -> AVOID mutlak, konteks kosong.
+    d_illq = decide(sc, plan, regime_ok=True, rs_ok=True, liquid=False)
+    check(d_illq.verdict == "AVOID" and d_illq.entry is None,
+          "tidak likuid -> AVOID tanpa konteks eksekusi")
+    # Spekulatif -> tetap BUY (kalau gerbang lolos) tapi ditandai.
+    d_spec = decide(sc, plan, regime_ok=True, rs_ok=True, liquid=True,
+                    speculative=True)
+    check(d_spec.verdict == "BUY" and d_spec.speculative,
+          "spekulatif ditandai tapi tak menaikkan/menurunkan verdikt")
+
+    # Downtrend (NO_TRADE) -> AVOID apa pun status gerbang.
+    down = compute_features(make_ohlcv("downtrend"))
+    sc_d = score_ticker("TEST.JK", down)
+    plan_d = evaluate_buy(sc_d, capital=100_000_000)
+    d_avoid = decide(sc_d, plan_d, regime_ok=True, rs_ok=True, liquid=True)
+    check(d_avoid.verdict == "AVOID", "downtrend NO_TRADE -> AVOID")
+    check(len(d_avoid.reasons) > 0, "AVOID menyertakan alasan")
+
+
 if __name__ == "__main__":
     print("Menjalankan uji pipeline dengan data sintetis...")
     test_indicators()
@@ -143,4 +197,5 @@ if __name__ == "__main__":
     test_position_sizing()
     test_buy_signal()
     test_rr_math()
+    test_decision_verdict()
     print("\nSemua uji LULUS. Pipeline analisa berfungsi.\n")

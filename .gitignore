@@ -15,6 +15,8 @@ data/*.csv
 data/*.parquet
 .env
 secrets.toml
+data/notify_state.json
+data/paper_account.json
 *.log
 
 # OS
