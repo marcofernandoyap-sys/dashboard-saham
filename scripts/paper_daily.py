@@ -103,6 +103,11 @@ def main() -> int:
         storage = Storage()
         if not args.skip_ingest:
             tickers = idx_tickers(args.index)
+            # Index regime (^JKSE) WAJIB ikut di-refresh: filter regime memakainya
+            # sebagai gerbang entry. Tanpa ini, harga saham maju tapi indeks basi
+            # -> regime dievaluasi pada data lama (bug kesegaran data).
+            if SETTINGS.regime.enabled and SETTINGS.regime.index_ticker not in tickers:
+                tickers = [*tickers, SETTINGS.regime.index_ticker]
             print(f"[1/4] Refresh data {len(tickers)} ticker (period={args.period})...")
             try:
                 provider = YFinanceProvider(market="IDX")
