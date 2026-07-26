@@ -522,8 +522,9 @@ edge nyata. **Verdikt: TOLAK.** Default tetap `breadth.enabled=False`. Kode + un
 | 6 | Timeframe mingguan (W-FRI resample) | ❌ TOLAK | +0,54 → **−0,82** |
 | 7 | Sizing Kelly-fraksi adaptif | ❌ TOLAK | +0,54 → +0,39 |
 | 8 | Filter lebar pasar (breadth, non-price) | ❌ TOLAK | +0,54 → +0,09 |
+| 9 | Kunci param (buang re-optimasi per-fold) | ❌ TOLAK | 0,72 = bias seleksi (default 4/480) |
 
-**Pola yang muncul (8 eksperimen, 2 adopsi):** kedua yang lolos (regime, RS)
+**Pola yang muncul (9 eksperimen, 2 adopsi):** kedua yang lolos (regime, RS)
 adalah **filter ENTRY berbasis tren pasar/relatif** — mereka menambah informasi
 BARU (konteks makro & peer). Yang ditolak semuanya adalah **manipulasi
 exit/sizing berbasis histori price sendiri** (trailing, scale-out, weight-cap,
@@ -556,12 +557,35 @@ tak ada satu fold yang mendominasi. Terbaik #5 +1,63 (2021-22), terburuk #1 −1
 tanpa ganti tanda. IS=630 terlemah (0,50, param lebih basi). **Bukan artefak** satu
 pilihan protokol.
 
-**Temuan tak terduga:** param yang DIKUNCI di nilai adopsi (buy=60/atr=3,0/RR=3,0/lb=252)
-mencetak **0,72 OOS** — lebih tinggi dari **0,54** hasil re-optimasi grid per-fold. Artinya
-grid search per-fold menambah **kebisingan overfit**, bukan nilai; berkomitmen pada default
-tetap lebih tahan OOS. Ini hipotesis nyata (bisa berarti: buang re-optimasi per-fold), TAPI
-belum diadopsi — angka 0,72 bisa mengandung bias seleksi kalau default itu sendiri pernah
-dipilih dengan melihat seluruh histori. Perlu uji jujur tersendiri, bukan adopsi diam-diam.
+**Temuan tak terduga (kemudian DIBANTAH — lihat #9):** param yang DIKUNCI di nilai adopsi
+(buy=60/atr=3,0/RR=3,0/lb=252) mencetak **0,72 OOS** — lebih tinggi dari **0,54** hasil
+re-optimasi grid per-fold. Ini SEMPAT terlihat seperti bukti bahwa grid search per-fold
+menambah kebisingan overfit. TAPI angka 0,72 dicurigai bias seleksi (default bisa saja pernah
+dipilih dengan melihat seluruh histori), jadi ditandai "perlu uji jujur tersendiri, bukan
+adopsi diam-diam". Uji itu = eksperimen #9 di bawah, yang MEMBANTAH temuan ini.
+
+### Perbaikan struktural #9: kunci param (buang re-optimasi per-fold) → DITOLAK (bias seleksi)
+
+Menindaklanjuti temuan audit 0,72 vs 0,54. Hipotesis: mengunci param default (tanpa
+re-optimasi grid per-fold) benar-benar lebih baik OOS. Uji jujur (`scripts/experiment_fixed_vs_adaptive.py`,
+LQ45, IS 504 / OOS 126, fee 20bps): bukan membandingkan **satu** angka (0,72 vs 0,54) —
+itu jebakan — melainkan mengunci **SETIAP** dari 480 kombinasi grid satu per satu dan
+menempatkan default di dalam sebaran OOS Sharpe-nya.
+
+| | OOS Sharpe |
+|---|---|
+| Adaptif (re-optimasi grid per-fold, jujur) | **+0,525** ✓ reproduksi 0,54 |
+| Default DIKUNCI (buy=60/atr=3,0/RR=3,0/lb=252) | **+0,718** ✓ reproduksi 0,72 |
+| Sebaran 480 kombinasi dikunci | min −0,879 · median **+0,069** · max +0,895 |
+
+**Verdikt: DITOLAK — 0,72 adalah bias seleksi, bukan efek "mengunci lebih baik".** Default
+menempati **peringkat 4/480 (persentil 99)** di sebaran param dikunci. Kombinasi dikunci yang
+mengalahkan adaptif hanya **13/480 (3%)** — artinya **97% pilihan kunci yang "buta" KALAH** dari
+re-optimasi per-fold. Kalau kita mengunci param generik (bukan yang kebetulan jadi default),
+rata-rata Sharpe ~0,07. Jadi re-optimasi per-fold BUKAN kebisingan; ia justru mengungguli
+hampir semua pilihan kunci buta. Angka 0,72 hanya muncul karena default duduk di puncak
+sebaran dengan hindsight. **0,525 tetap estimasi jujur; gate live 1,0 tetap memblokir.** Uji
+ini melindungi integritas angka, bukan menaikkannya.
 
 **Kesimpulan audit:** 0,54 itu jujur & kokoh (bukan fluke satu fold, tahan biaya & jendela),
 tapi tidak konsisten antar-rezim → gate live 1,0 benar tetap memblokir. Fokus berikutnya =
