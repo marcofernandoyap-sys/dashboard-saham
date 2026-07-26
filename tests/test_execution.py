@@ -132,6 +132,21 @@ def test_journal_feeds_paper_readiness() -> None:
     check(not pr["allowed"], "1 trade < minimum -> paper belum siap (benar)")
 
 
+def test_observation_days_count_without_fills() -> None:
+    print("\n== Hari observasi (nol fill) tetap menambah n_days ==")
+    j = Journal(_tmp("obs.db"))
+    check(j.paper_stats()["n_days"] == 0, "mula-mula 0 hari")
+    # Tiga hari "diam" (regime off) — nol fill, tapi sistem mengamati pasar.
+    for d in ("2026-01-05", "2026-01-06", "2026-01-07"):
+        j.record_session("paper", note="stand aside", ts=f"{d}T10:15:00+00:00")
+    stats = j.paper_stats()
+    check(stats["n_days"] == 3, f"3 hari observasi terhitung (dapat {stats['n_days']})")
+    check(stats["n_trades"] == 0, "tetap 0 trade (jam waktu != jam trade)")
+    # Sesi berulang di hari sama tidak menggandakan hitungan hari.
+    j.record_session("paper", ts="2026-01-07T17:15:00+00:00")
+    check(j.paper_stats()["n_days"] == 3, "sesi ganda di hari sama -> tetap 3")
+
+
 def test_idx_live_placeholder_refuses() -> None:
     print("\n== Broker IDX live (placeholder) menolak ==")
     b = LiveBrokerNotConfigured()
@@ -153,5 +168,6 @@ if __name__ == "__main__":
     test_live_gate_allow_live_still_blocked_by_track_record()
     test_paper_mode_not_gated()
     test_journal_feeds_paper_readiness()
+    test_observation_days_count_without_fills()
     test_idx_live_placeholder_refuses()
     print("\nSemua uji eksekusi LULUS.\n")

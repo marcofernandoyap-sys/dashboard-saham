@@ -6,7 +6,8 @@ Setiap hari trading (Sen-Jum), skrip ini:
   1. Refresh data harga IDX terakhir (period pendek, murah).
   2. Bangun laporan sinyal actionable hari ini.
   3. Kirim ke PaperBroker lokal (uang-VIRTUAL, bukan uang riil).
-  4. Rekam ke journal (`exec_fills`) supaya gate paper_readiness terisi.
+  4. Rekam HARI OBSERVASI ke journal (`exec_sessions`) + fill (`exec_fills`)
+     supaya gate paper_readiness terisi — jam waktu jalan MESKI nol sinyal.
   5. Log semua ke `data/paper/YYYY-MM-DD.log` untuk audit.
 
 MENGAPA butuh ini: gate live memblokir sampai `min_paper_trading_days=60` &
@@ -146,10 +147,18 @@ def main() -> int:
         index_df = index_df if not index_df.empty else None
         report = build_daily_report(ohlcv, index_df, args.capital, SETTINGS)
 
+        # Catat HARI OBSERVASI hari ini — jam waktu paper jalan meski nol sinyal
+        # (mis. regime off). "Diam saat downtrend" = perilaku yang divalidasi.
+        journal.record_session(
+            "paper", note=f"{len(report.actionable)} actionable")
+
         # (4) Eksekusi
         if not report.actionable:
             print("[3/4] Tidak ada sinyal actionable — tidak ada order. (Normal & sehat.)")
-            print("[4/4] Selesai (paper journal tidak berubah hari ini).")
+            print("[4/4] Selesai (hari observasi tercatat; jam paper tetap jalan).")
+            pr2 = paper_readiness(journal, SETTINGS)
+            print(f"Paper journal sekarang: {pr2['stats']['n_days']} hari, "
+                  f"{pr2['stats']['n_trades']} trade.")
             return 0
         print(f"[3/4] {len(report.actionable)} sinyal actionable ditemukan.")
         print("[4/4] Kirim ke PaperBroker (uang virtual):")
