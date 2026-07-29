@@ -76,6 +76,29 @@ Batas jujur (jangan berasumsi 100%):
 - `pmset repeat` hanya punya SATU slot → perintah ini menggantikan repeat lama
   (bukan one-off system alarm). Hapus dengan `sudo pmset repeat cancel`.
 
+## Dashboard Streamlit otomatis (com.marco.quant-dashboard)
+
+Dashboard read-only bisa dijalankan sebagai LAYANAN TETAP (start saat login,
+restart otomatis jika mati) — beda dengan `quant-paper` yang terjadwal harian.
+
+```sh
+# Install (satu kali)
+cp scripts/launchd/com.marco.quant-dashboard.plist \
+   ~/Library/LaunchAgents/com.marco.quant-dashboard.plist
+launchctl load ~/Library/LaunchAgents/com.marco.quant-dashboard.plist
+launchctl list | grep com.marco.quant-dashboard   # verifikasi
+
+# Akses
+open http://localhost:8501
+```
+
+- `RunAtLoad=true` + `KeepAlive=true` → dashboard hidup saat login & bangkit lagi
+  jika crash. Tidak ada `StartCalendarInterval` (bukan job terjadwal).
+- **Tidak perlu restart harian**: dashboard punya fragment auto-refresh yang cek
+  kesegaran data tiap 30 menit dan reload sendiri saat data harian baru masuk.
+- Update setelah edit plist / uninstall: sama seperti `quant-paper` di atas,
+  ganti label jadi `com.marco.quant-dashboard`.
+
 ## Catatan penting
 
 - **Mac harus menyala** pada jam 17:15 WIB. Kalau Mac tidur, launchd akan

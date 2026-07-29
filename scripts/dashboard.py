@@ -110,8 +110,23 @@ def _fmt_bool(v: bool | None) -> str:
 # --------------------------------------------------------------------------
 # UI
 # --------------------------------------------------------------------------
+@st.fragment(run_every=1800)  # cek tiap 30 menit
+def _auto_refresh_guard() -> None:
+    """
+    Pantau kesegaran data di disk. Data harian di-ingest launchd (paper_daily);
+    dashboard yang jalan lama TIDAK otomatis rerun. Fragment ini memeriksa
+    _data_version() berkala — kalau tanggal terakhir berubah (data baru masuk),
+    picu rerun penuh supaya cache (yang berkunci versi) memuat ulang sendiri.
+    """
+    if _data_version() != st.session_state.get("_data_version"):
+        st.rerun()
+
+
 def main() -> None:
     st.set_page_config(page_title="Quant IDX — Dashboard", layout="wide")
+
+    st.session_state["_data_version"] = _data_version()
+    _auto_refresh_guard()
 
     st.title("Quant IDX — Dashboard analisa (read-only)")
     st.caption(SETTINGS.disclaimer + "  •  Dashboard ini TIDAK mengeksekusi "

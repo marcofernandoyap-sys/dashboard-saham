@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent: jalankan dashboard Streamlit (read-only) sebagai layanan tetap.
+
+  Beda dengan com.marco.quant-paper (job terjadwal sekali sehari), dashboard
+  adalah proses LONG-RUNNING. Karena itu:
+    - RunAtLoad = true  -> start otomatis saat login.
+    - KeepAlive = true  -> kalau proses mati/crash, launchd hidupkan lagi.
+  Tidak ada StartCalendarInterval (bukan job terjadwal).
+
+  Kesegaran data: dashboard punya fragment auto-refresh (cek _data_version tiap
+  30 menit) yang memicu reload saat data harian baru masuk — jadi tak perlu
+  restart harian. launchd cukup menjaga proses tetap hidup.
+
+  Akses: http://localhost:8501 (headless, tanpa buka browser sendiri).
+
+  Instalasi & pengecekan ada di scripts/launchd/README.md.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.marco.quant-dashboard</string>
+
+  <!--
+    Path ABSOLUT ke streamlit di venv (LaunchAgent tidak mewarisi PATH shell).
+    Ganti jika lokasi repo/venv berbeda.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/crm/quant-trading/.venv/bin/streamlit</string>
+    <string>run</string>
+    <string>scripts/dashboard.py</string>
+    <string>--server.headless</string>
+    <string>true</string>
+    <string>--server.port</string>
+    <string>8501</string>
+  </array>
+
+  <!-- WorkingDirectory penting supaya path relatif (data/market.db) benar -->
+  <key>WorkingDirectory</key>
+  <string>/Users/crm/quant-trading</string>
+
+  <!-- Layanan tetap: start saat login, hidupkan lagi jika mati -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Log stdout & stderr -->
+  <key>StandardOutPath</key>
+  <string>/Users/crm/quant-trading/data/paper/dashboard.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/crm/quant-trading/data/paper/dashboard.log</string>
+
+  <!-- Timezone lokal (Asia/Jakarta) — konsisten dgn tampilan tanggal WIB -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TZ</key>
+    <string>Asia/Jakarta</string>
+  </dict>
+
+  <!-- Interactive: dashboard layanan interaktif (bukan batch prioritas rendah) -->
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>
