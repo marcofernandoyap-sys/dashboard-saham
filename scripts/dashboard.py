@@ -161,14 +161,37 @@ def main() -> None:
                   default=None)
     ready = live_readiness(SETTINGS)
 
+    # Kesegaran data: berapa hari BURSA sejak bar terakhir (Sen-Jum, kasar).
+    freshness = None
+    if last_dt is not None:
+        biz = len(pd.bdate_range(last_dt.normalize(),
+                                 pd.Timestamp.now().normalize())) - 1
+        freshness = ("hari ini" if biz <= 0 else
+                     "1 hari bursa lalu" if biz == 1 else
+                     f"{biz} hari bursa lalu")
+
+    # Angka IHSG vs EMA supaya alasan regime transparan (bukan sekadar label).
+    ihsg_txt = None
+    idf = core.get("index_df")
+    if idf is not None and not idf.empty:
+        close = idf["close"]
+        ema = close.ewm(span=SETTINGS.regime.ema_period, adjust=False).mean()
+        gap = (close.iloc[-1] / ema.iloc[-1] - 1.0) * 100.0
+        ihsg_txt = (f"IHSG {close.iloc[-1]:,.0f} vs EMA{SETTINGS.regime.ema_period} "
+                    f"{ema.iloc[-1]:,.0f} ({gap:+.1f}%)")
+
     c1, c2, c3 = st.columns(3)
     c1.metric("Regime pasar (IHSG)",
               "BULLISH ✔" if regime_today else
               ("BEARISH ✗" if regime_today is not None else "N/A"),
+              delta=ihsg_txt, delta_color="off",
               help=f"IHSG vs EMA{SETTINGS.regime.ema_period}. Entry long hanya "
                    "diizinkan saat bullish.")
     c2.metric("Data terakhir",
-              last_dt.date().isoformat() if last_dt is not None else "—")
+              last_dt.date().isoformat() if last_dt is not None else "—",
+              delta=freshness, delta_color="off",
+              help="Bar harian masuk setelah bursa tutup (~17:15 WIB). Dini hari / "
+                   "sebelum tutup, tanggal terakhir = penutupan hari bursa sebelumnya.")
     c3.metric("Gerbang LIVE",
               "LOLOS" if ready["allowed"] else "DIBLOKIR",
               help="Live trading tetap dilarang selama ada blocker.")
@@ -210,6 +233,14 @@ def main() -> None:
     # ---- Trade Plan ----
     with tab_plan:
         st.subheader("Trade plan — keputusan per saham (swing)")
+        if regime_today is False:
+            st.warning(
+                "**Regime pasar BEARISH — semua entry long DITAHAN (bukan error).**  \n"
+                + (f"{ihsg_txt}. " if ihsg_txt else "")
+                + f"IHSG di bawah EMA{SETTINGS.regime.ema_period}, jadi gerbang "
+                "risk-first memblokir BUY meski ada setup valid (lihat status "
+                "**WATCH**). Trade plan akan terisi otomatis begitu IHSG kembali "
+                "di atas EMA — ini disengaja, jangan di-bypass.")
         st.caption("**BUY** = lolos gerbang sinyal + regime bullish + RS>IHSG.  "
                    "**WATCH** = setup valid tapi diblokir regime/RS (pantau).  "
                    "**AVOID** = gerbang sinyal belum lolos / tidak likuid.  "
